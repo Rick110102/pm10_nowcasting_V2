@@ -1,1 +1,59 @@
+name: Actualizar Monitor Nowcasting PM10
 
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trigger-update]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Restaurar caché
+        uses: actions/cache@v4
+        with:
+          path: cache_estaciones.json
+          key: cache-estaciones-${{ github.run_id }}
+          restore-keys: |
+            cache-estaciones-
+
+      - name: Verificar caché restaurado
+        run: |
+          if [ -f cache_estaciones.json ]; then
+            echo "Caché encontrado"
+            cat cache_estaciones.json
+          else
+            echo "Sin caché previo"
+          fi
+
+      - name: Instalar dependencias
+        run: pip install requests folium
+
+      - name: Ejecutar script
+        env:
+          METEOSIM_SECRET: ${{ secrets.METEOSIM_SECRET }}
+        run: python scripts/generate_map.py
+
+      - name: Guardar caché
+        uses: actions/cache@v4
+        with:
+          path: cache_estaciones.json
+          key: cache-estaciones-${{ github.run_id }}
+
+      - name: Publicar en GitHub Pages
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add index.html
+          git commit -m "Update nowcasting $(date -u '+%Y-%m-%d %H:%M UTC')" || echo "Sin cambios"
+          git push
